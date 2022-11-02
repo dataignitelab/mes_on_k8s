@@ -1,0 +1,70 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: eureka # 배포 이름
+  labels:
+    app: eureka # 배포 이름
+spec:
+  serviceName: eureka
+  replicas: 3
+  selector:
+    matchLabels:
+      app: eureka # 배포 이름
+  template:
+    metadata:
+      labels:
+        app: eureka # 배포 이름
+    spec:
+      containers:
+      - name: eureka-peer  # 컨테이너 이름
+        image: "openjdk:18-jdk-alpine3.15" # 이미지명 
+        imagePullPolicy: Always
+        command: ["java"]
+        args: ["-jar", "-Dspring.profiles.active=k8s","/data/Eureka-0.0.1-SNAPSHOT.jar"]
+        ports: # 컨테이너 내부에서 사용하는 포트 명시
+        - name: web
+          containerPort: 9000
+          protocol: TCP
+        - name: ssh
+          containerPort: 22
+          protocol: TCP
+        volumeMounts: # 영구 저장할 볼륨 (디렉토리) 설정
+        - name: data-volume # 위에서 명시한 볼륨명 지정
+          mountPath: /data # 서비스에서 필요한 경로 지정
+  volumeClaimTemplates: # statefulset 은 독립적인 저장공간을 갖는다고 생각하고 각각의 pod에 pv 를 생성함
+  - metadata:
+      name: data-volume 
+    spec: 
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "nfs"
+      resources: 
+        requests: 
+          storage: 10Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eureka # 서비스 이름
+spec:
+  selector:
+    app: eureka # 연결할 Deployment의 이름
+  clusterIP: None # 매우 중요! stateless 서비스로 생성
+  ports:
+  - name: peer
+    port: 9000
+      
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eureka-web # 서비스 이름
+spec:
+  selector:
+    app: eureka # 연결할 Deployment의 이름
+  type: LoadBalancer # 서비스 유형 LoadBalancer
+  ports:
+  - name: web
+    port: 9000 # Pod 내부에서 사용하는 포트
+    protocol: TCP

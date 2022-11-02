@@ -1,0 +1,54 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontservice # 배포 이름
+  labels:
+    app: frontservice # 배포 이름
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: frontservice # 배포 이름
+  template:
+    metadata:
+      labels:
+        app: frontservice # 배포 이름
+    spec:
+      volumes:
+      - name: data-volume # 볼륨명
+        persistentVolumeClaim:
+          claimName: mes-share-pvc
+      containers:
+      - name: frontservice  # 컨테이너 이름
+        image: "openjdk:18-jdk-alpine3.15" # 이미지명 
+        imagePullPolicy: Always
+#        command: ["sleep"]
+#        args: ["infinity"]
+        command: ["java"]
+        args: ["-jar", "-Dspring.profiles.active=k8s", "/data/Frontend-0.0.1-SNAPSHOT.jar"]
+        ports: # 컨테이너 내부에서 사용하는 포트 명시
+        - name: web
+          containerPort: 80
+          protocol: TCP
+        - name: ssh
+          containerPort: 22
+          protocol: TCP
+        volumeMounts: # 영구 저장할 볼륨 (디렉토리) 설정
+        - name: data-volume # 위에서 명시한 볼륨명 지정
+          mountPath: /data # 서비스에서 필요한 경로 지정
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontservice-web # 서비스 이름
+spec:
+  selector:
+    app: frontservice # 연결할 Deployment의 이름
+  type: LoadBalancer
+  ports:
+  - name: web
+    port: 80
+    protocol: TCP
+  

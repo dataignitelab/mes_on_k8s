@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: PersistentVolumeClaim # 영구 스토리지 생성을 요청하는 객체
+metadata:
+  name: apigateway-pvc # PVC 이름
+spec:
+  storageClassName: nfs # ReclaimPolicy : delete 로 설정되어 있으므로 pvc 삭제시 물리스토리지의 데이터도 삭제됨
+  accessModes:
+    - ReadWriteMany # 스토리지 액세스 모드
+  resources:
+    requests:
+      storage: 10Gi # 용량은 지정되어있지만 실제로 10G 이상 사용 가능
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apigateway # 배포 이름
+  labels:
+    app: apigateway # 배포 이름
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: apigateway # 배포 이름
+  template:
+    metadata:
+      labels:
+        app: apigateway # 배포 이름
+    spec:
+      volumes:
+      - name: data-volume # 볼륨명
+        persistentVolumeClaim:
+          claimName: apigateway-pvc
+      containers:
+      - name: api-gateway  # 컨테이너 이름
+        image: "openjdk:18-jdk-alpine3.15" # 이미지명 
+        imagePullPolicy: Always
+#        command: ["sleep"]
+#        args: ["infinity"]
+        command: ["java"]
+        args: ["-jar", "-Dspring.profiles.active=k8s", "/data/APIGateway-0.0.1-SNAPSHOT.jar"]
+        ports: # 컨테이너 내부에서 사용하는 포트 명시
+        - name: web
+          containerPort: 8080
+          protocol: TCP
+        - name: ssh
+          containerPort: 22
+          protocol: TCP
+        volumeMounts: # 영구 저장할 볼륨 (디렉토리) 설정
+        - name: data-volume # 위에서 명시한 볼륨명 지정
+          mountPath: /data # 서비스에서 필요한 경로 지정
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apigateway-stateless-svc # 서비스 이름
+spec:
+  selector:
+    app: apigateway # 연결할 Deployment의 이름
+  clusterIP: None # 매우 중요! stateless 서비스로 생성
+  ports:
+  - port: 8080
+    name: web
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apigateway-webs-svc # 서비스 이름
+spec:
+  selector:
+    app: apigateway # 연결할 Deployment의 이름
+  type: LoadBalancer # 서비스 유형 LoadBalancer
+  ports:
+  - name: service-port
+    port: 8080 # Pod 내부에서 사용하는 포트
+    protocol: TCP

@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: front-service
+  profile:
+    active: k8s
+
+server:
+  port: 80
+  
+apiGatewayUrl: http://172.17.250.102:8080 # loadbalancer 의 주소 
